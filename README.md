@@ -2,11 +2,25 @@
 
 Automacao de preparacao de estacoes de quiosque Gtech em Windows, com interface WPF e fluxo unico para instalacao de apps, tweaks e configuracoes operacionais.
 
+## Execucao em Linha Unica (cliente)
+
+Depois de publicar o pacote na Release do GitHub (passos abaixo), envie apenas este comando para o cliente:
+
+```powershell
+irm https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1 | iex
+```
+
+Opcao para CMD (sem abrir PowerShell manualmente):
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1 | iex"
+```
+
 ## Visao Geral
 
 Este projeto centraliza em um unico script a rotina de preparacao do Totem:
 - Instalacao de aplicativos via `winget`
-- Execucao de instaladores locais
+- Execucao de instaladores locais (`Gtech Arcade Launcher Setup.exe`, `vcredist_2015_2019_x64.exe`, `P3L_WIN_DRIVER_272.exe`, `.reg`, etc.)
 - Aplicacao de tweaks de sistema
 - Presets de configuracao para acelerar setup
 
@@ -14,24 +28,27 @@ Este projeto centraliza em um unico script a rotina de preparacao do Totem:
 
 ```text
 InstTotem/
-|-- TotemAutomacao.ps1          # Script principal (GUI WPF embutida)
+|-- TotemAutomacao.ps1
 |-- README.md
 |-- CONTEXT.md
+|-- bootstrap/
+|   `-- Start-InstTotem.ps1          # Bootstrap remoto (irm | iex)
 |-- assets/
-|   |-- images/                 # Logos e imagens da interface
-|   `-- installers/             # Instaladores locais (.exe, .reg, etc.)
+|   |-- images/
+|   `-- installers/
 |-- scripts/
-|   |-- launcher.vbs            # Atalho para abrir o script principal oculto
+|   |-- launcher.vbs
+|   |-- release/
+|   |   `-- New-InstTotemPackage.ps1 # Gera ZIP + SHA256 para Release
 |   |-- tests/
-|   |   `-- test_xaml.ps1       # Smoke test do XAML externo
+|   |   `-- test_xaml.ps1
 |   `-- legacy/
-|       `-- SetupTotemGUI.ps1   # Versao antiga da GUI (referencia)
+|       `-- SetupTotemGUI.ps1
 |-- ui/
-|   `-- TotemGUI.xaml           # XAML de referencia para design/testes
+|   `-- TotemGUI.xaml
 |-- docs/
-|   `-- adr/                    # Decisoes de arquitetura
-`-- references/
-    `-- AppRef/                 # Projetos de referencia (nao usados em runtime)
+|   `-- adr/
+`-- references/                      # referencia local (ignorada no git)
 ```
 
 ## Requisitos
@@ -40,10 +57,9 @@ InstTotem/
 - PowerShell 5.1+ (ou PowerShell 7)
 - Permissao de Administrador
 - `winget` disponivel no sistema
+- Internet (para modo linha unica)
 
-## Como Executar
-
-No diretorio do projeto:
+## Como Executar Localmente
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
@@ -55,6 +71,26 @@ Opcao com launcher:
 ```powershell
 wscript .\scripts\launcher.vbs
 ```
+
+## Publicar para Execucao Remota
+
+1. Gere o pacote de release:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release\New-InstTotemPackage.ps1
+```
+
+2. O script gera em `dist/`:
+- `InstTotem-package.zip`
+- `InstTotem-package.sha256`
+
+3. Crie uma Release no GitHub (`windson3/InstTotem`) e anexe esses dois arquivos.
+
+4. O bootstrap remoto baixa automaticamente:
+- `https://github.com/windson3/InstTotem/releases/latest/download/InstTotem-package.zip`
+- `https://github.com/windson3/InstTotem/releases/latest/download/InstTotem-package.sha256`
+
+5. Envie ao cliente a linha unica da secao inicial.
 
 ## Testes Rapidos
 
@@ -74,15 +110,8 @@ Teste de carga do XAML de referencia:
 powershell -ExecutionPolicy Bypass -File .\scripts\tests\test_xaml.ps1
 ```
 
-## Convencoes de Pastas
-
-- Coloque novos instaladores em `assets/installers/`
-- Coloque logos/imagens em `assets/images/`
-- Coloque scripts auxiliares em `scripts/`
-- Evite arquivos soltos na raiz
-
 ## Notas
 
 - O runtime oficial e `TotemAutomacao.ps1`.
-- A pasta `references/AppRef` existe para estudo/comparacao visual e tecnica.
-- A GUI principal usa XAML embutido no script; `ui/TotemGUI.xaml` fica como referencia de manutencao.
+- O bootstrap extrai em `C:\ProgramData\InstTotem\current` e executa o script principal.
+- A pasta `references/` esta ignorada no git para evitar conflito com repositorios embutidos.
