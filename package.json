@@ -1,0 +1,27 @@
+{
+  "name": "insttotem",
+  "version": "1.0.0",
+  "description": "Automacao de preparacao de estacoes de quiosque Gtech em Windows, com interface WPF e fluxo unico para instalacao de apps, tweaks e configuracoes operacionais.",
+  "main": "generate_skills_pdf.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/windson3/InstTotem.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/windson3/InstTotem/issues"
+  },
+  "homepage": "https://github.com/windson3/InstTotem#readme",
+  "dependencies": {
+    "pdfkit": "^0.18.0"
+  }
+}
