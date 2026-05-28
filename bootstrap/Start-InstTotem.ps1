@@ -99,6 +99,33 @@ function Ensure-Utf8BomFile {
     }
 }
 
+function Remove-OldReleasesBestEffort {
+    param(
+        [Parameter(Mandatory = $true)][string]$ReleasesDir,
+        [int]$Keep = 3
+    )
+
+    if (-not (Test-Path -LiteralPath $ReleasesDir)) {
+        return
+    }
+
+    $dirs = Get-ChildItem -LiteralPath $ReleasesDir -Directory |
+        Sort-Object LastWriteTime -Descending
+
+    if ($dirs.Count -le $Keep) {
+        return
+    }
+
+    $toRemove = $dirs | Select-Object -Skip $Keep
+    foreach ($dir in $toRemove) {
+        try {
+            Remove-Item -LiteralPath $dir.FullName -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Host "[InstTotem] Aviso: nao foi possivel remover release antiga '$($dir.FullName)' ($($_.Exception.Message))" -ForegroundColor Yellow
+        }
+    }
+}
+
 try {
     if ($PSVersionTable.PSEdition -ne "Core") {
         [Net.ServicePointManager]::SecurityProtocol = `
@@ -117,11 +144,15 @@ try {
     )
 
     $downloadDir = Join-Path $InstallRoot "downloads"
-    $extractDir = Join-Path $InstallRoot "current"
+    $releasesDir = Join-Path $InstallRoot "releases"
+    $runId = Get-Date -Format "yyyyMMdd-HHmmss"
+    $extractDir = Join-Path $releasesDir $runId
+    $latestPointerPath = Join-Path $InstallRoot "latest-release.txt"
     $packagePath = Join-Path $downloadDir $PackageAssetName
     $sha256Path = Join-Path $downloadDir $Sha256AssetName
 
     New-Item -Path $downloadDir -ItemType Directory -Force | Out-Null
+    New-Item -Path $releasesDir -ItemType Directory -Force | Out-Null
 
     $packageSource = Invoke-DownloadWithFallback -Uris $packageCandidates -OutFile $packagePath -Label $PackageAssetName
 
@@ -143,9 +174,6 @@ try {
         }
     }
 
-    if (Test-Path -LiteralPath $extractDir) {
-        Remove-Item -LiteralPath $extractDir -Recurse -Force
-    }
     New-Item -Path $extractDir -ItemType Directory -Force | Out-Null
 
     Write-Step "Extraindo pacote para: $extractDir"
@@ -156,6 +184,8 @@ try {
         throw "Arquivo principal nao encontrado no pacote: $mainScript"
     }
     Ensure-Utf8BomFile -Path $mainScript
+    Set-Content -LiteralPath $latestPointerPath -Value $extractDir -Encoding UTF8
+    Remove-OldReleasesBestEffort -ReleasesDir $releasesDir -Keep 3
 
     if ($NoRun) {
         Write-Step "Pacote preparado com sucesso (NoRun). Script principal: $mainScript"
