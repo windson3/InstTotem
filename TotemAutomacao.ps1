@@ -1,4 +1,4 @@
-<#    --------------------------------------------------------------
+﻿<#    --------------------------------------------------------------
     TotemAutomacao.ps1
     Totem – Automação para Quiosques Gtech Arcade
     Interface WPF (inspirada no winutil) – tudo em um único script

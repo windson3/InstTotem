@@ -79,6 +79,26 @@ function Get-ExpectedHashFromFile {
     return $m.Groups[1].Value.ToUpperInvariant()
 }
 
+function Ensure-Utf8BomFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+    if ($hasBom) {
+        return
+    }
+
+    try {
+        $utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
+        $text = $utf8Strict.GetString($bytes)
+        $utf8Bom = New-Object System.Text.UTF8Encoding($true)
+        [System.IO.File]::WriteAllText($Path, $text, $utf8Bom)
+        Write-Step "Encoding normalizado para UTF-8 BOM: $Path"
+    } catch {
+        throw "Falha ao normalizar encoding de ${Path}: $($_.Exception.Message)"
+    }
+}
+
 try {
     if ($PSVersionTable.PSEdition -ne "Core") {
         [Net.ServicePointManager]::SecurityProtocol = `
@@ -135,6 +155,7 @@ try {
     if (-not (Test-Path -LiteralPath $mainScript)) {
         throw "Arquivo principal nao encontrado no pacote: $mainScript"
     }
+    Ensure-Utf8BomFile -Path $mainScript
 
     if ($NoRun) {
         Write-Step "Pacote preparado com sucesso (NoRun). Script principal: $mainScript"
