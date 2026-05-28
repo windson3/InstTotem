@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Repository = "windson3/InstTotem",
+    [string]$Branch = "main",
     [string]$PackageAssetName = "InstTotem-package.zip",
     [string]$Sha256AssetName = "InstTotem-package.sha256",
     [string]$InstallRoot = "$env:ProgramData\InstTotem",
@@ -35,6 +36,38 @@ function Invoke-Download {
     Invoke-WebRequest @requestParams
 }
 
+function Get-HttpStatusCodeFromException {
+    param([Parameter(Mandatory = $true)]$Exception)
+    if ($Exception -and $Exception.Response) {
+        return [int]$Exception.Response.StatusCode
+    }
+    return $null
+}
+
+function Invoke-DownloadWithFallback {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Uris,
+        [Parameter(Mandatory = $true)][string]$OutFile,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    $errors = @()
+    foreach ($uri in $Uris) {
+        try {
+            Write-Step "Baixando ${Label}: $uri"
+            Invoke-Download -Uri $uri -OutFile $OutFile
+            return $uri
+        } catch {
+            $status = Get-HttpStatusCodeFromException -Exception $_.Exception
+            $msg = if ($status) { "HTTP $status" } else { $_.Exception.Message }
+            Write-Host "[InstTotem] Falha em $uri ($msg). Tentando proxima origem..." -ForegroundColor Yellow
+            $errors += "$uri => $msg"
+        }
+    }
+
+    throw "Nao foi possivel baixar $Label. Tentativas: $($errors -join '; ')"
+}
+
 function Get-ExpectedHashFromFile {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -53,8 +86,15 @@ try {
     }
 
     $releaseBase = "https://github.com/$Repository/releases/latest/download"
-    $packageUrl = "$releaseBase/$PackageAssetName"
-    $sha256Url = "$releaseBase/$Sha256AssetName"
+    $rawBase = "https://raw.githubusercontent.com/$Repository/$Branch"
+    $packageCandidates = @(
+        "$releaseBase/$PackageAssetName",
+        "$rawBase/dist/$PackageAssetName"
+    )
+    $shaCandidates = @(
+        "$releaseBase/$Sha256AssetName",
+        "$rawBase/dist/$Sha256AssetName"
+    )
 
     $downloadDir = Join-Path $InstallRoot "downloads"
     $extractDir = Join-Path $InstallRoot "current"
@@ -63,14 +103,12 @@ try {
 
     New-Item -Path $downloadDir -ItemType Directory -Force | Out-Null
 
-    Write-Step "Baixando pacote: $PackageAssetName"
-    Invoke-Download -Uri $packageUrl -OutFile $packagePath
+    $packageSource = Invoke-DownloadWithFallback -Uris $packageCandidates -OutFile $packagePath -Label $PackageAssetName
 
     $hashVerified = $false
     if (-not $SkipHashCheck) {
         try {
-            Write-Step "Baixando hash: $Sha256AssetName"
-            Invoke-Download -Uri $sha256Url -OutFile $sha256Path
+            $hashSource = Invoke-DownloadWithFallback -Uris $shaCandidates -OutFile $sha256Path -Label $Sha256AssetName
 
             $expectedHash = Get-ExpectedHashFromFile -Path $sha256Path
             $actualHash = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash.ToUpperInvariant()
@@ -79,7 +117,7 @@ try {
                 throw "Hash divergente. Esperado: $expectedHash | Atual: $actualHash"
             }
             $hashVerified = $true
-            Write-Step "Hash SHA256 validado com sucesso."
+            Write-Step "Hash SHA256 validado com sucesso. (pacote: $packageSource | hash: $hashSource)"
         } catch {
             throw "Falha na validacao de hash: $($_.Exception.Message)"
         }
