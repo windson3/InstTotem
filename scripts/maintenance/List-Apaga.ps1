@@ -9,7 +9,7 @@
     SECAO 4: Remove pasta C:\inst\maquina\*.* e depois a pasta maquina
 .NOTES
     Execute como Administrador:
-      powershell -ExecutionPolicy Bypass -File "F:\Testes APP\Scripts\List-Apaga.ps1"
+      powershell -ExecutionPolicy Bypass -File ".\scripts\maintenance\List-Apaga.ps1"
 #>
 
 $ErrorActionPreference = 'Continue'

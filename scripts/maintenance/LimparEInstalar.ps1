@@ -8,7 +8,7 @@
 .NOTES
     SECAO 1: Instala os 5 programas da lista branca (manter)
     SECAO 2: Desinstala todos os outros programas da lista
-    Execute como Administrador: powershell -ExecutionPolicy Bypass -File "LimparEInstalar.ps1"
+    Execute como Administrador: powershell -ExecutionPolicy Bypass -File ".\scripts\maintenance\LimparEInstalar.ps1"
 #>
 
 $ErrorActionPreference = 'Continue'

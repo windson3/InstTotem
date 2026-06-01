@@ -84,7 +84,7 @@ function Write-Log {
 Write-Log "Totem v4.0 iniciando..." "INFO"
 
 # ============ LOAD XAML FROM FILE ============
-$xamlFile = Join-Path $BasePath "TotemUI.xaml"
+$xamlFile = Join-Path $BasePath "ui\TotemUI.xaml"
 if (Test-Path $xamlFile) {
     $xamlStr = [System.IO.File]::ReadAllText($xamlFile, [System.Text.Encoding]::UTF8)
     Write-Log "XAML carregado de arquivo" "INFO"

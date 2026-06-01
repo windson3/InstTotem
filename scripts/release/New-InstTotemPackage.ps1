@@ -29,7 +29,8 @@ try {
         "README.md",
         "assets\images",
         "assets\installers",
-        "scripts\launcher.vbs"
+        "scripts\launcher.vbs",
+        "ui\TotemUI.xaml"
     )
 
     if ($IncludeUiXaml) {
@@ -59,7 +60,18 @@ try {
     Write-Step "Gerando pacote ZIP: $zipPath"
     Compress-Archive -Path (Join-Path $stageDir "*") -DestinationPath $zipPath -Force
 
-    $sha = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToUpperInvariant()
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($zipPath)
+        try {
+            $hashBytes = $sha256.ComputeHash($stream)
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $sha256.Dispose()
+    }
+    $sha = ([System.BitConverter]::ToString($hashBytes) -replace "-", "").ToUpperInvariant()
     $shaFileName = [IO.Path]::GetFileNameWithoutExtension($PackageName) + ".sha256"
     $shaFilePath = Join-Path $OutputDir $shaFileName
     $shaLine = "$sha  $PackageName"

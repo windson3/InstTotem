@@ -7,13 +7,19 @@ Automacao de preparacao de estacoes de quiosque Gtech em Windows, com interface 
 Depois de publicar o pacote na Release do GitHub (passos abaixo), envie apenas este comando para o cliente:
 
 ```powershell
-irm https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1 | iex
+irm https://raw.githubusercontent.com/windson3/InstTotem/main/i.ps1 | iex
 ```
 
 Opcao para CMD (sem abrir PowerShell manualmente):
 
 ```bat
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1 | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/windson3/InstTotem/main/i.ps1 | iex"
+```
+
+Para usar o bootstrap direto (com parametros), mantenha:
+
+```powershell
+irm https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1 | iex
 ```
 
 ## Visao Geral
@@ -38,13 +44,22 @@ InstTotem/
 |   `-- installers/
 |-- scripts/
 |   |-- launcher.vbs
+|   |-- maintenance/
+|   |   |-- ListarProgramasEAtualizacoes.ps1
+|   |   |-- LimparEInstalar.ps1
+|   |   |-- List-Apaga.ps1
+|   |   `-- Instalar-Arcade.bat
 |   |-- release/
 |   |   `-- New-InstTotemPackage.ps1 # Gera ZIP + SHA256 para Release
 |   |-- tests/
 |   |   `-- test_xaml.ps1
+|   |-- tools/
+|   |   |-- generate_skills_pdf.js
+|   |   `-- validate_ps1.py
 |   `-- legacy/
 |       `-- SetupTotemGUI.ps1
 |-- ui/
+|   |-- TotemUI.xaml
 |   `-- TotemGUI.xaml
 |-- docs/
 |   `-- adr/
@@ -86,7 +101,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release\New-InstTotemPackage.
 
 3. Crie uma Release no GitHub (`windson3/InstTotem`) e anexe esses dois arquivos.
 
-4. O bootstrap remoto baixa automaticamente:
+4. O bootstrap remoto tenta Release e, se nao existir, usa fallback no branch:
 - `https://github.com/windson3/InstTotem/releases/latest/download/InstTotem-package.zip`
 - `https://github.com/windson3/InstTotem/releases/latest/download/InstTotem-package.sha256`
 
@@ -113,5 +128,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\tests\test_xaml.ps1
 ## Notas
 
 - O runtime oficial e `TotemAutomacao.ps1`.
-- O bootstrap extrai em `C:\ProgramData\InstTotem\current` e executa o script principal.
+- O bootstrap extrai em `C:\ProgramData\InstTotem\releases\<timestamp>` e executa o script principal.
+- O bootstrap agora mostra progresso de download por padrao (interativo). Para modo silencioso, use o parametro `-NoDownloadProgress` ao executar `Start-InstTotem.ps1` diretamente.
 - A pasta `references/` esta ignorada no git para evitar conflito com repositorios embutidos.

@@ -6,11 +6,12 @@ param(
     [string]$Sha256AssetName = "InstTotem-package.sha256",
     [string]$InstallRoot = "$env:ProgramData\InstTotem",
     [switch]$SkipHashCheck,
+    [switch]$NoDownloadProgress,
     [switch]$NoRun
 )
 
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
+$ProgressPreference = if ($NoDownloadProgress) { "SilentlyContinue" } else { "Continue" }
 
 function Write-Step {
     param([string]$Message)
@@ -33,7 +34,17 @@ function Invoke-Download {
         $requestParams.UseBasicParsing = $true
     }
 
+    $startedAt = Get-Date
     Invoke-WebRequest @requestParams
+    $elapsed = (Get-Date) - $startedAt
+    $sizeBytes = if (Test-Path -LiteralPath $OutFile) {
+        (Get-Item -LiteralPath $OutFile).Length
+    } else {
+        0
+    }
+    $sizeMb = [math]::Round(($sizeBytes / 1MB), 2)
+    $elapsedSeconds = [math]::Round($elapsed.TotalSeconds, 1)
+    Write-Step ("Download concluido: {0} ({1} MB em {2} s)" -f (Split-Path -Leaf $OutFile), $sizeMb, $elapsedSeconds)
 }
 
 function Get-HttpStatusCodeFromException {
@@ -52,9 +63,10 @@ function Invoke-DownloadWithFallback {
     )
 
     $errors = @()
-    foreach ($uri in $Uris) {
+    for ($i = 0; $i -lt $Uris.Count; $i++) {
+        $uri = $Uris[$i]
         try {
-            Write-Step "Baixando ${Label}: $uri"
+            Write-Step "Baixando ${Label} (origem $($i + 1)/$($Uris.Count)): $uri"
             Invoke-Download -Uri $uri -OutFile $OutFile
             return $uri
         } catch {
@@ -66,6 +78,24 @@ function Invoke-DownloadWithFallback {
     }
 
     throw "Nao foi possivel baixar $Label. Tentativas: $($errors -join '; ')"
+}
+
+function Get-Sha256Hex {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $stream = [System.IO.File]::OpenRead($Path)
+        try {
+            $hashBytes = $sha256.ComputeHash($stream)
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $sha256.Dispose()
+    }
+
+    return ([System.BitConverter]::ToString($hashBytes) -replace "-", "").ToUpperInvariant()
 }
 
 function Get-ExpectedHashFromFile {
@@ -162,7 +192,7 @@ try {
             $hashSource = Invoke-DownloadWithFallback -Uris $shaCandidates -OutFile $sha256Path -Label $Sha256AssetName
 
             $expectedHash = Get-ExpectedHashFromFile -Path $sha256Path
-            $actualHash = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash.ToUpperInvariant()
+            $actualHash = Get-Sha256Hex -Path $packagePath
 
             if ($actualHash -ne $expectedHash) {
                 throw "Hash divergente. Esperado: $expectedHash | Atual: $actualHash"

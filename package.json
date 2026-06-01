@@ -2,7 +2,7 @@
   "name": "insttotem",
   "version": "1.0.0",
   "description": "Automacao de preparacao de estacoes de quiosque Gtech em Windows, com interface WPF e fluxo unico para instalacao de apps, tweaks e configuracoes operacionais.",
-  "main": "generate_skills_pdf.js",
+  "main": "scripts/tools/generate_skills_pdf.js",
   "directories": {
     "doc": "docs"
   },

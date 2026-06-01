@@ -2,8 +2,20 @@
 """Critical analysis of GerarScriptInstalacao.ps1 — corrected version."""
 import re, os
 
-SCRIPT_PATH = r"F:\Testes APP\Scripts\GerarScriptInstalacao.ps1"
-TXT_PATH = r"F:\Testes APP\Maquina Teste\ListaProgramasEAtualizacao.txt"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+
+# Pode ser sobrescrito por variaveis de ambiente:
+#   set TARGET_PS1=C:\...\arquivo.ps1
+#   set TARGET_TXT=C:\...\ListaProgramasEAtualizacao.txt
+SCRIPT_PATH = os.environ.get(
+    "TARGET_PS1",
+    os.path.join(REPO_ROOT, "scripts", "maintenance", "List-Apaga.ps1"),
+)
+TXT_PATH = os.environ.get(
+    "TARGET_TXT",
+    r"C:\inst\maquina\ListaProgramasEAtualizacao.txt",
+)
 
 errors = []
 warnings = []
@@ -15,8 +27,12 @@ with open(SCRIPT_PATH, 'r', encoding='utf-8') as f:
     script_lines = f.readlines()
 script_content = ''.join(script_lines)
 
-with open(TXT_PATH, 'r', encoding='utf-8') as f:
-    txt_lines = f.readlines()
+if os.path.exists(TXT_PATH):
+    with open(TXT_PATH, 'r', encoding='utf-8') as f:
+        txt_lines = f.readlines()
+else:
+    txt_lines = []
+    print(f"[WARN] Arquivo de referencia nao encontrado: {TXT_PATH}")
 
 # ================================================================
 # DATA: Exact map from the script

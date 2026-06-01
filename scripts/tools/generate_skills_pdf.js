@@ -2,7 +2,8 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-const outputPath = 'C:\\Testes APP\\Tutorial Skills COMPLETO.pdf';
+const repoRoot = path.resolve(__dirname, '..', '..');
+const outputPath = path.join(repoRoot, 'docs', 'Tutorial Skills COMPLETO.pdf');
 const doc = new PDFDocument({ margin: 50, size: 'A4' });
 doc.pipe(fs.createWriteStream(outputPath));
 
