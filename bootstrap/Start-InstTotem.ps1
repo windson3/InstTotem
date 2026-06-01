@@ -55,6 +55,40 @@ function Get-HttpStatusCodeFromException {
     return $null
 }
 
+function Try-GetBranchCommitSha {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string]$Branch
+    )
+
+    $uri = "https://api.github.com/repos/$Repository/commits/$Branch"
+    $requestParams = @{
+        Uri         = $uri
+        Method      = "Get"
+        Headers     = @{
+            "User-Agent" = "InstTotem-Bootstrap"
+            "Accept"     = "application/vnd.github+json"
+        }
+        ErrorAction = "Stop"
+    }
+
+    if ($PSVersionTable.PSVersion.Major -le 5 -and $PSVersionTable.PSEdition -ne "Core") {
+        $requestParams.UseBasicParsing = $true
+    }
+
+    try {
+        $response = Invoke-RestMethod @requestParams
+        $sha = "$($response.sha)"
+        if ($sha -match "^[A-Fa-f0-9]{40}$") {
+            return $sha
+        }
+    } catch {
+        Write-Host "[InstTotem] Aviso: nao foi possivel obter commit do branch '$Branch' ($($_.Exception.Message))." -ForegroundColor Yellow
+    }
+
+    return $null
+}
+
 function Invoke-DownloadWithFallback {
     param(
         [Parameter(Mandatory = $true)][string[]]$Uris,
@@ -163,15 +197,30 @@ try {
     }
 
     $releaseBase = "https://github.com/$Repository/releases/latest/download"
-    $rawBase = "https://raw.githubusercontent.com/$Repository/$Branch"
-    $packageCandidates = @(
-        "$releaseBase/$PackageAssetName",
-        "$rawBase/dist/$PackageAssetName"
-    )
-    $shaCandidates = @(
-        "$releaseBase/$Sha256AssetName",
-        "$rawBase/dist/$Sha256AssetName"
-    )
+    $rawBranchBase = "https://raw.githubusercontent.com/$Repository/$Branch"
+    $downloadSources = @()
+    $downloadSources += [pscustomobject]@{
+        Name       = "GitHub Release (latest)"
+        PackageUri = "$releaseBase/$PackageAssetName"
+        ShaUri     = "$releaseBase/$Sha256AssetName"
+    }
+
+    $branchCommitSha = Try-GetBranchCommitSha -Repository $Repository -Branch $Branch
+    if ($branchCommitSha) {
+        $rawCommitBase = "https://raw.githubusercontent.com/$Repository/$branchCommitSha"
+        $downloadSources += [pscustomobject]@{
+            Name       = "Raw commit $($branchCommitSha.Substring(0, 7))"
+            PackageUri = "$rawCommitBase/dist/$PackageAssetName"
+            ShaUri     = "$rawCommitBase/dist/$Sha256AssetName"
+        }
+    }
+
+    $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    $downloadSources += [pscustomobject]@{
+        Name       = "Raw branch (cache-bust)"
+        PackageUri = "$rawBranchBase/dist/$PackageAssetName?cb=$cacheBust"
+        ShaUri     = "$rawBranchBase/dist/$Sha256AssetName?cb=$cacheBust"
+    }
 
     $downloadDir = Join-Path $InstallRoot "downloads"
     $releasesDir = Join-Path $InstallRoot "releases"
@@ -184,12 +233,27 @@ try {
     New-Item -Path $downloadDir -ItemType Directory -Force | Out-Null
     New-Item -Path $releasesDir -ItemType Directory -Force | Out-Null
 
-    $packageSource = Invoke-DownloadWithFallback -Uris $packageCandidates -OutFile $packagePath -Label $PackageAssetName
-
+    $packageSource = $null
+    $hashSource = $null
     $hashVerified = $false
-    if (-not $SkipHashCheck) {
+    $downloadErrors = @()
+
+    for ($i = 0; $i -lt $downloadSources.Count; $i++) {
+        $source = $downloadSources[$i]
         try {
-            $hashSource = Invoke-DownloadWithFallback -Uris $shaCandidates -OutFile $sha256Path -Label $Sha256AssetName
+            Write-Step ("Tentando origem {0}/{1}: {2}" -f ($i + 1), $downloadSources.Count, $source.Name)
+            Write-Step "Baixando ${PackageAssetName}: $($source.PackageUri)"
+            Invoke-Download -Uri $source.PackageUri -OutFile $packagePath
+            $packageSource = $source.PackageUri
+
+            if ($SkipHashCheck) {
+                $hashVerified = $false
+                break
+            }
+
+            Write-Step "Baixando ${Sha256AssetName}: $($source.ShaUri)"
+            Invoke-Download -Uri $source.ShaUri -OutFile $sha256Path
+            $hashSource = $source.ShaUri
 
             $expectedHash = Get-ExpectedHashFromFile -Path $sha256Path
             $actualHash = Get-Sha256Hex -Path $packagePath
@@ -197,11 +261,23 @@ try {
             if ($actualHash -ne $expectedHash) {
                 throw "Hash divergente. Esperado: $expectedHash | Atual: $actualHash"
             }
+
             $hashVerified = $true
             Write-Step "Hash SHA256 validado com sucesso. (pacote: $packageSource | hash: $hashSource)"
+            break
         } catch {
-            throw "Falha na validacao de hash: $($_.Exception.Message)"
+            $status = Get-HttpStatusCodeFromException -Exception $_.Exception
+            $msg = if ($status) { "HTTP $status" } else { $_.Exception.Message }
+            Write-Host "[InstTotem] Falha na origem '$($source.Name)' ($msg)." -ForegroundColor Yellow
+            $downloadErrors += "$($source.Name) => $msg"
         }
+    }
+
+    if (-not $packageSource) {
+        throw "Nao foi possivel baixar $PackageAssetName. Tentativas: $($downloadErrors -join '; ')"
+    }
+    if (-not $SkipHashCheck -and -not $hashVerified) {
+        throw "Falha na validacao de hash. Tentativas: $($downloadErrors -join '; ')"
     }
 
     New-Item -Path $extractDir -ItemType Directory -Force | Out-Null
