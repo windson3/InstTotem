@@ -8,6 +8,7 @@ if ($PSVersionTable.PSEdition -ne "Core") {
         [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 }
 
-$bootstrapUri = "https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1"
+$cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$bootstrapUri = "https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1?cb=$cacheBust"
 $bootstrapSource = Invoke-RestMethod -Uri $bootstrapUri -ErrorAction Stop
 & ([scriptblock]::Create($bootstrapSource))
