@@ -27,10 +27,10 @@ try {
     $requiredItems = @(
         "TotemAutomacao.ps1",
         "README.md",
-        "assets\images",
-        "assets\installers",
-        "scripts\launcher.vbs",
-        "ui\TotemUI.xaml"
+        "assets\\images",
+        "assets\\installers",
+        "scripts",
+        "ui\\TotemUI.xaml"
     )
 
     if ($IncludeUiXaml) {
