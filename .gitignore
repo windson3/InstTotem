@@ -183,5 +183,8 @@ cython_debug/
 # Projeto: referencias externas usadas apenas para estudo/comparacao
 references/
 
+# Local editor / agent state
+.agents/
+
 # Artefatos de empacotamento/release local
 dist/
