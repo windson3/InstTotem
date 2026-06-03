@@ -273,6 +273,25 @@ function Ensure-Utf8BomFile {
     }
 }
 
+function Invoke-MainScriptWithBypass {
+    param(
+        [Parameter(Mandatory = $true)][string]$MainScript,
+        [string[]]$Arguments,
+        [string]$WorkingDirectory
+    )
+
+    $hostExe = if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' }
+    $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $MainScript)
+    if ($Arguments) { $argList += $Arguments }
+
+    Write-Step "Executando TotemAutomacao.ps1 com ExecutionPolicy Bypass..."
+    $process = Start-Process -FilePath $hostExe -ArgumentList $argList -WorkingDirectory $WorkingDirectory -NoNewWindow -Wait -PassThru
+
+    if ($process.ExitCode -ne 0) {
+        throw "O script principal retornou exit code $($process.ExitCode)."
+    }
+}
+
 function Remove-OldReleasesBestEffort {
     param(
         [Parameter(Mandatory = $true)][string]$ReleasesDir,
@@ -420,7 +439,7 @@ try {
         Write-Step "Executando TotemAutomacao.ps1."
     }
 
-    & $mainScript @MainScriptArgumentList
+    Invoke-MainScriptWithBypass -MainScript $mainScript -Arguments $MainScriptArgumentList -WorkingDirectory $extractDir
 } catch {
     Write-Host "[InstTotem] ERRO: $($_.Exception.Message)" -ForegroundColor Red
     throw

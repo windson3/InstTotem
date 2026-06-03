@@ -7,7 +7,7 @@ Automacao de preparacao de estacoes de quiosque Gtech em Windows, com interface 
 Depois de publicar o pacote na Release do GitHub (passos abaixo), envie apenas este comando para o cliente:
 
 ```powershell
-irm https://raw.githubusercontent.com/windson3/InstTotem/main/i.ps1 | iex
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/windson3/InstTotem/main/i.ps1 | iex"
 ```
 
 Opcao para CMD (sem abrir PowerShell manualmente):
@@ -15,6 +15,8 @@ Opcao para CMD (sem abrir PowerShell manualmente):
 ```bat
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/windson3/InstTotem/main/i.ps1 | iex"
 ```
+
+> Observacao: usar `-ExecutionPolicy Bypass` previne o erro de script desabilitado no sistema.
 
 Para usar o bootstrap direto (com parametros), mantenha:
 
