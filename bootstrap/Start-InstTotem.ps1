@@ -280,12 +280,21 @@ function Invoke-MainScriptWithBypass {
         [string]$WorkingDirectory
     )
 
+    function ConvertTo-ProcessArgument {
+        param([AllowEmptyString()][string]$Value)
+
+        if ($null -eq $Value) { return '""' }
+        if ($Value -notmatch '[\s"]') { return $Value }
+        return '"' + ($Value -replace '"', '\"') + '"'
+    }
+
     $hostExe = if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' }
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $MainScript)
     if ($Arguments) { $argList += $Arguments }
+    $argumentLine = ($argList | ForEach-Object { ConvertTo-ProcessArgument -Value $_ }) -join ' '
 
     Write-Step "Executando TotemAutomacao.ps1 com ExecutionPolicy Bypass..."
-    $process = Start-Process -FilePath $hostExe -ArgumentList $argList -WorkingDirectory $WorkingDirectory -NoNewWindow -Wait -PassThru
+    $process = Start-Process -FilePath $hostExe -ArgumentList $argumentLine -WorkingDirectory $WorkingDirectory -NoNewWindow -Wait -PassThru
 
     if ($process.ExitCode -ne 0) {
         throw "O script principal retornou exit code $($process.ExitCode)."
