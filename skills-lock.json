@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "add-ir-instruction": {
+      "source": "facebook/hermes",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/add-ir-instruction/SKILL.md",
+      "computedHash": "468bf7c3792570605ba6af93f7757f1fcecdf51ac9fe4753a49f13f05428e935"
+    },
+    "gc-safe-coding": {
+      "source": "facebook/hermes",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/gc-safe-coding/SKILL.md",
+      "computedHash": "fcab5d29fc25daa3ef1669085073ee668b75710000df83825742f3ac417dfe54"
+    },
+    "non-interactive-git-rebase": {
+      "source": "facebook/hermes",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/non-interactive-git-rebase/SKILL.md",
+      "computedHash": "a57767348cdd812178936924c35dbb68622d7d963e1d5a2f08f64c3f828347ef"
+    },
+    "typescript-best-practices": {
+      "source": "0xbigboss/claude-code",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/typescript-best-practices/SKILL.md",
+      "computedHash": "b73b69197553b711e02839015e6abca717eb2305e90de3cc86403c92d92b00d9"
+    }
+  }
+}
