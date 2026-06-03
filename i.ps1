@@ -9,6 +9,34 @@ function Test-IsAdministrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Try-GetMainCommitSha {
+    $requestParams = @{
+        Uri         = "https://api.github.com/repos/windson3/InstTotem/commits/main"
+        Method      = "Get"
+        Headers     = @{
+            "User-Agent" = "InstTotem-Installer"
+            "Accept"     = "application/vnd.github+json"
+        }
+        ErrorAction = "Stop"
+    }
+
+    if ($PSVersionTable.PSVersion.Major -le 5 -and $PSVersionTable.PSEdition -ne "Core") {
+        $requestParams.UseBasicParsing = $true
+    }
+
+    try {
+        $response = Invoke-RestMethod @requestParams
+        $sha = "$($response.sha)"
+        if ($sha -match "^[A-Fa-f0-9]{40}$") {
+            return $sha
+        }
+    } catch {
+        Write-Host "[InstTotem] Aviso: nao foi possivel resolver o commit main. Usando branch main." -ForegroundColor Yellow
+    }
+
+    return $null
+}
+
 $selfUri = "https://raw.githubusercontent.com/windson3/InstTotem/main/i.ps1"
 if (-not (Test-IsAdministrator)) {
     $cacheBustSelf = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
@@ -23,6 +51,12 @@ if ($PSVersionTable.PSEdition -ne "Core") {
 }
 
 $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-$bootstrapUri = "https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1?cb=$cacheBust"
+$bootstrapRef = Try-GetMainCommitSha
+if ([string]::IsNullOrWhiteSpace($bootstrapRef)) {
+    $bootstrapRef = "main"
+    $bootstrapUri = "https://raw.githubusercontent.com/windson3/InstTotem/$bootstrapRef/bootstrap/Start-InstTotem.ps1?cb=$cacheBust"
+} else {
+    $bootstrapUri = "https://raw.githubusercontent.com/windson3/InstTotem/$bootstrapRef/bootstrap/Start-InstTotem.ps1"
+}
 $bootstrapSource = Invoke-RestMethod -Uri $bootstrapUri -ErrorAction Stop
 & ([scriptblock]::Create($bootstrapSource))
