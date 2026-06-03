@@ -81,6 +81,21 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\TotemAutomacao.ps1
 ```
 
+## Power Automate Desktop
+
+Para evitar `WindowNotFoundException`, nao use a acao **Pressionar botao da janela** no Power Automate Desktop. Execute o fluxo por PowerShell:
+
+```powershell
+powershell.exe -Sta -NoProfile -ExecutionPolicy Bypass -File ".\scripts\Run-InstTotemAuto.ps1"
+```
+
+Opcao remota sem clique:
+
+```powershell
+$s = irm https://raw.githubusercontent.com/windson3/InstTotem/main/bootstrap/Start-InstTotem.ps1
+& ([scriptblock]::Create($s)) -MainScriptArgumentList @('-AutoRunAll','-CloseWhenDone')
+```
+
 Opcao com launcher:
 
 ```powershell

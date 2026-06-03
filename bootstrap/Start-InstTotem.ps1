@@ -5,6 +5,7 @@ param(
     [string]$PackageAssetName = "InstTotem-package.zip",
     [string]$Sha256AssetName = "InstTotem-package.sha256",
     [string]$InstallRoot = "$env:ProgramData\InstTotem",
+    [string[]]$MainScriptArgumentList = @(),
     [switch]$SkipHashCheck,
     [switch]$NoDownloadProgress,
     [switch]$NoRun
@@ -304,7 +305,7 @@ try {
         Write-Step "Executando TotemAutomacao.ps1."
     }
 
-    & $mainScript
+    & $mainScript @MainScriptArgumentList
 } catch {
     Write-Host "[InstTotem] ERRO: $($_.Exception.Message)" -ForegroundColor Red
     throw
