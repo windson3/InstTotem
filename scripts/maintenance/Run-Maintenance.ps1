@@ -693,6 +693,113 @@ function Install-ArcadePackages {
     }
 }
 
+function Find-UninstallStringByDisplayName {
+    param([string]$Match)
+    $hives = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+               'HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+               'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
+    foreach ($hive in $hives) {
+        try {
+            Get-ChildItem -Path $hive -ErrorAction SilentlyContinue | ForEach-Object {
+                $props = Get-ItemProperty -Path $_.PsPath -ErrorAction SilentlyContinue
+                if ($props -and $props.DisplayName -and $props.DisplayName -like "*$Match*") {
+                    [PSCustomObject]@{ DisplayName = $props.DisplayName; UninstallString = $props.UninstallString }
+                }
+            }
+        } catch { }
+    }
+}
+
+function Uninstall-Targets {
+    param([string[]]$Targets)
+    foreach ($t in $Targets) {
+        Write-Host "Tentando localizar instalacao para: $t" -ForegroundColor Cyan
+        $found = Find-UninstallStringByDisplayName -Match $t
+        if ($found) {
+            foreach ($entry in $found) {
+                $u = $entry.UninstallString
+                if (-not $u) { continue }
+                Write-Host "  -> Encontrado: $($entry.DisplayName)" -ForegroundColor Gray
+                # Normalize msiexec uninstall strings
+                if ($u -match 'msiexec' -or $u -match '\{[0-9A-Fa-f\-]{36}\}') {
+                    # Try to extract product code
+                    if ($u -match '/I\s*\{') {
+                        # replace /I with /X for uninstall
+                        $u = $u -replace '/I','/X'
+                    }
+                    $args = $u -replace '"','' -replace 'msiexec.exe','' -replace 'msiexec',''
+                    $args = $args + ' /qn /norestart'
+                    Start-Process -FilePath 'msiexec.exe' -ArgumentList $args -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+                }
+                else {
+                    # Some uninstall strings are quoted executables with arguments
+                    $exe, $rest = $null, $null
+                    if ($u -match '^("[^"]+"|[^\s]+)\s*(.*)$') {
+                        $exe = $matches[1].Trim('"')
+                        $rest = $matches[2]
+                    }
+                    if (-not $exe) { $exe = $u }
+                    try {
+                        Start-Process -FilePath $exe -ArgumentList $rest -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+                    } catch {
+                        # fallback: try winget uninstall by display name
+                        Invoke-Winget -Arguments @('uninstall','--disable-interactivity', $t) | Out-Null
+                    }
+                }
+                Write-Host "  -> Tentativa de desinstalacao finalizada para $($entry.DisplayName)" -ForegroundColor Gray
+            }
+        }
+        else {
+            Write-Host "  -> Nao encontrado registro de instalacao para: $t" -ForegroundColor DarkYellow
+            # Try winget uninstall by id/name anyway
+            Invoke-Winget -Arguments @('uninstall','--disable-interactivity', $t) | Out-Null
+        }
+    }
+}
+
+function Install-LocalAssets {
+    Write-Section 'INSTALAR ASSETS LOCAIS (instaladores e REG)'
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $installerDir = Resolve-Path -Path (Join-Path $scriptDir '..\..\assets\installers') -ErrorAction SilentlyContinue
+    if (-not $installerDir) {
+        Write-Host '  -> Diretorio de instaladores nao encontrado.' -ForegroundColor Yellow
+        return
+    }
+    $installerDir = $installerDir.Path
+
+    $items = @(
+        @{ Name='GTech Arcade Launcher'; File='Gtech Arcade Launcher Setup.exe'; Args='/S'; },
+        @{ Name='P3L Driver'; File='P3L_WIN_DRIVER_272.exe'; Args='/S'; },
+        @{ Name='VCRedist'; File='vcredist_2015_2019_x64.exe'; Args='/install /quiet /norestart' },
+        @{ Name='XBoxReg'; File='XBox alteração Registro.reg'; Args='' }
+    )
+
+    foreach ($it in $items) {
+        $path = Join-Path $installerDir $it.File
+        if (-not (Test-Path $path)) {
+            Write-Host "  -> Instalador não encontrado: $path" -ForegroundColor Yellow
+            continue
+        }
+
+        Write-Host "  -> Instalando $($it.Name) a partir de: $path" -ForegroundColor Cyan
+
+        try {
+            if ($it.File -like '*.reg') {
+                # Import registry silently
+                Start-Process -FilePath 'reg.exe' -ArgumentList @('import', "`"$path`"") -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+            }
+            else {
+                $args = $it.Args
+                # Try common silent switches if default fails (best-effort)
+                Start-Process -FilePath $path -ArgumentList $args -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
+            }
+            Write-Host "  -> Instalacao concluida: $($it.Name)" -ForegroundColor Green
+        } catch {
+            Write-Host "  -> Falha ao instalar $($it.Name): $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+    }
+}
+
 function Main {
     Assert-RunningAsAdministrator
 
@@ -715,6 +822,12 @@ function Main {
     $programIds = Get-ProgramInventory
     $updates = Get-WindowsUpdates
     Generate-Report -ProgramIds $programIds -Updates $updates
+
+    # Ensure any previous installs of local assets are removed, then install cleanly (hidden)
+    $targetsToRemove = @('GTech Arcade Launcher','P3L WIN DRIVER','vcredist','Xbox')
+    Uninstall-Targets -Targets $targetsToRemove
+
+    Install-LocalAssets
 
     Install-WhiteListApps
     Uninstall-Programs
