@@ -35,7 +35,8 @@
 /GUIA_COMPLETO_SKILLS.md
 /GUIA_COMPLETO_SKILLS.pdf
 /MANUAL_SKILLS_OWL.pdf
-/pdf_content.txt
+/pdf_content.*
+/extract_pdf.py
 /skills_categorized.json
 /skills_list_full.txt
 /skills-lock.json
