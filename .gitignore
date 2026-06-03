@@ -52,6 +52,7 @@
 /parse_skills.py
 
 # Python/cache de ferramentas
+/*.py
 __pycache__/
 *.py[cod]
 .pytest_cache/
