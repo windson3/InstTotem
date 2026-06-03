@@ -35,13 +35,21 @@
 /GUIA_COMPLETO_SKILLS.md
 /GUIA_COMPLETO_SKILLS.pdf
 /MANUAL_SKILLS_OWL.pdf
+/analyze_*.py
+/analyze_pdf.py
 /pdf_content.*
+/pdf_analysis.json
+/pdf_full_text.txt
 /extract_pdf.py
+/skills*.json
 /skills_categorized.json
 /skills_list_full.txt
 /skills-lock.json
 /gen_manual.py
 /gen_pdf.py
+/list_skills.py
+/scan_skills.py
+/parse_skills.py
 
 # Python/cache de ferramentas
 __pycache__/

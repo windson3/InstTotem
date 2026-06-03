@@ -90,6 +90,115 @@ function Try-GetBranchCommitSha {
     return $null
 }
 
+function ConvertTo-RawGitHubPath {
+    param([Parameter(Mandatory = $true)][string]$RelativePath)
+
+    $segments = $RelativePath -split "/"
+    $encodedSegments = foreach ($segment in $segments) {
+        [System.Uri]::EscapeDataString($segment)
+    }
+    return ($encodedSegments -join "/")
+}
+
+function Test-IsRuntimeSourcePath {
+    param([Parameter(Mandatory = $true)][string]$RelativePath)
+
+    $normalized = $RelativePath -replace "\\", "/"
+    $normalizedLocal = $normalized.Replace("/", [string][System.IO.Path]::DirectorySeparatorChar)
+    $leaf = [System.IO.Path]::GetFileName($normalizedLocal)
+
+    if ($normalized -in @("TotemAutomacao.ps1", "README.md", "ui/TotemUI.xaml")) {
+        return $true
+    }
+
+    if ($normalized -like "assets/images/*") {
+        return $true
+    }
+
+    if ($normalized -like "assets/installers/*") {
+        return $true
+    }
+
+    if ($normalized -like "scripts/*") {
+        if ($normalized -like "scripts/Teste*") { return $false }
+        if ($normalized -like "scripts/* - Copia*") { return $false }
+        if ($leaf -match "\.(tmp|temp|bak|old|orig|log)$") { return $false }
+        if ($leaf -like "~$*") { return $false }
+        return $true
+    }
+
+    return $false
+}
+
+function Invoke-SourceTreeFallback {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string]$Branch,
+        [string]$CommitSha,
+        [Parameter(Mandatory = $true)][string]$ExtractDir
+    )
+
+    $sourceRef = if ($CommitSha) { $CommitSha } else { $Branch }
+    $shortRef = if ($CommitSha) { $CommitSha.Substring(0, 7) } else { $Branch }
+    $treeUri = "https://api.github.com/repos/$Repository/git/trees/$sourceRef" + "?recursive=1"
+    $requestParams = @{
+        Uri         = $treeUri
+        Method      = "Get"
+        Headers     = @{
+            "User-Agent" = "InstTotem-Bootstrap"
+            "Accept"     = "application/vnd.github+json"
+        }
+        ErrorAction = "Stop"
+    }
+
+    if ($PSVersionTable.PSVersion.Major -le 5 -and $PSVersionTable.PSEdition -ne "Core") {
+        $requestParams.UseBasicParsing = $true
+    }
+
+    Write-Step "Pacote ZIP nao encontrado. Baixando arvore limpa do projeto ($shortRef)."
+    $tree = Invoke-RestMethod @requestParams
+    if ($tree.truncated) {
+        throw "A API do GitHub retornou a arvore truncada; nao e seguro montar o runtime por fallback."
+    }
+
+    $entries = @($tree.tree | Where-Object {
+            $_.type -eq "blob" -and (Test-IsRuntimeSourcePath -RelativePath "$($_.path)")
+        } | Sort-Object path)
+
+    if ($entries.Count -eq 0) {
+        throw "Nenhum arquivo de runtime encontrado na arvore do repositorio."
+    }
+
+    New-Item -Path $ExtractDir -ItemType Directory -Force | Out-Null
+    $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    foreach ($entry in $entries) {
+        $relativePath = "$($entry.path)"
+        $encodedPath = ConvertTo-RawGitHubPath -RelativePath $relativePath
+        $fileUri = "https://raw.githubusercontent.com/$Repository/$sourceRef/$encodedPath"
+        if (-not $CommitSha) {
+            $fileUri = "$($fileUri)?cb=$cacheBust"
+        }
+
+        $relativeLocalPath = $relativePath.Replace("/", [string][System.IO.Path]::DirectorySeparatorChar)
+        $targetPath = Join-Path $ExtractDir $relativeLocalPath
+        $targetParent = Split-Path -Parent $targetPath
+        if (-not (Test-Path -LiteralPath $targetParent)) {
+            New-Item -Path $targetParent -ItemType Directory -Force | Out-Null
+        }
+
+        Write-Step "Baixando arquivo do projeto: $relativePath"
+        Invoke-Download -Uri $fileUri -OutFile $targetPath
+    }
+
+    $mainScript = Join-Path $ExtractDir "TotemAutomacao.ps1"
+    if (-not (Test-Path -LiteralPath $mainScript)) {
+        throw "Arquivo principal nao encontrado na arvore baixada: $mainScript"
+    }
+
+    Get-ChildItem -LiteralPath $ExtractDir -Recurse -Force -File -Filter "*.ps1" |
+        ForEach-Object { Ensure-Utf8BomFile -Path $_.FullName }
+}
+
 function Invoke-DownloadWithFallback {
     param(
         [Parameter(Mandatory = $true)][string[]]$Uris,
@@ -219,8 +328,8 @@ try {
     $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     $downloadSources += [pscustomobject]@{
         Name       = "Raw branch (cache-bust)"
-        PackageUri = "$rawBranchBase/dist/$PackageAssetName?cb=$cacheBust"
-        ShaUri     = "$rawBranchBase/dist/$Sha256AssetName?cb=$cacheBust"
+        PackageUri = "$rawBranchBase/dist/$($PackageAssetName)?cb=$cacheBust"
+        ShaUri     = "$rawBranchBase/dist/$($Sha256AssetName)?cb=$cacheBust"
     }
 
     $downloadDir = Join-Path $InstallRoot "downloads"
@@ -237,6 +346,7 @@ try {
     $packageSource = $null
     $hashSource = $null
     $hashVerified = $false
+    $installedFromSourceTree = $false
     $downloadErrors = @()
 
     for ($i = 0; $i -lt $downloadSources.Count; $i++) {
@@ -274,17 +384,20 @@ try {
         }
     }
 
-    if (-not $packageSource) {
-        throw "Nao foi possivel baixar $PackageAssetName. Tentativas: $($downloadErrors -join '; ')"
-    }
-    if (-not $SkipHashCheck -and -not $hashVerified) {
+    if ($packageSource -and -not $SkipHashCheck -and -not $hashVerified) {
         throw "Falha na validacao de hash. Tentativas: $($downloadErrors -join '; ')"
     }
 
     New-Item -Path $extractDir -ItemType Directory -Force | Out-Null
 
-    Write-Step "Extraindo pacote para: $extractDir"
-    Expand-Archive -LiteralPath $packagePath -DestinationPath $extractDir -Force
+    if ($packageSource) {
+        Write-Step "Extraindo pacote para: $extractDir"
+        Expand-Archive -LiteralPath $packagePath -DestinationPath $extractDir -Force
+    } else {
+        Write-Host "[InstTotem] Aviso: pacote nao disponivel nas origens configuradas. Tentativas: $($downloadErrors -join '; ')" -ForegroundColor Yellow
+        Invoke-SourceTreeFallback -Repository $Repository -Branch $Branch -CommitSha $branchCommitSha -ExtractDir $extractDir
+        $installedFromSourceTree = $true
+    }
 
     $mainScript = Join-Path $extractDir "TotemAutomacao.ps1"
     if (-not (Test-Path -LiteralPath $mainScript)) {
@@ -301,6 +414,8 @@ try {
 
     if ($hashVerified) {
         Write-Step "Executando TotemAutomacao.ps1 (pacote validado)."
+    } elseif ($installedFromSourceTree) {
+        Write-Step "Executando TotemAutomacao.ps1 (arvore limpa do GitHub)."
     } else {
         Write-Step "Executando TotemAutomacao.ps1."
     }
