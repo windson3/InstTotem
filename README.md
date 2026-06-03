@@ -42,29 +42,27 @@ InstTotem/
 |-- assets/
 |   |-- images/
 |   `-- installers/
+|-- release/
+|   `-- New-InstTotemPackage.ps1     # Gera ZIP + SHA256 para Release
+|-- tests/
+|   `-- test_xaml.ps1
 |-- scripts/
+|   |-- Manual do Totem/
+|   |   `-- Links dos manuais dos totens.txt
 |   |-- launcher.vbs
-|   |-- maintenance/
-|   |   |-- ListarProgramasEAtualizacoes.ps1
-|   |   |-- LimparEInstalar.ps1
-|   |   |-- List-Apaga.ps1
-|   |   `-- Instalar-Arcade.bat
-|   |-- release/
-|   |   `-- New-InstTotemPackage.ps1 # Gera ZIP + SHA256 para Release
-|   |-- tests/
-|   |   `-- test_xaml.ps1
-|   |-- tools/
-|   |   |-- generate_skills_pdf.js
-|   |   `-- validate_ps1.py
-|   `-- legacy/
-|       `-- SetupTotemGUI.ps1
+|   `-- maintenance/
+|       |-- ListarProgramasEAtualizacoes.ps1
+|       |-- LimparEInstalar.ps1
+|       |-- List-Apaga.ps1
+|       `-- Instalar-Arcade.bat
 |-- ui/
-|   |-- TotemUI.xaml
-|   `-- TotemGUI.xaml
+|   `-- TotemUI.xaml
 |-- docs/
 |   `-- adr/
-`-- references/                      # referencia local (ignorada no git)
+`-- .gitignore
 ```
+
+`scripts/` e a area operacional lida pela GUI. Pastas de apoio como `release/`, `tests/` e `tools/` ficam fora dela para nao aparecerem como acoes do Totem.
 
 ## Requisitos
 
@@ -86,7 +84,7 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 Para evitar `WindowNotFoundException`, nao use a acao **Pressionar botao da janela** no Power Automate Desktop. Execute o fluxo por PowerShell:
 
 ```powershell
-powershell.exe -Sta -NoProfile -ExecutionPolicy Bypass -File ".\scripts\Run-InstTotemAuto.ps1"
+powershell.exe -Sta -NoProfile -ExecutionPolicy Bypass -File ".\TotemAutomacao.ps1" -AutoRunAll -CloseWhenDone
 ```
 
 Opcao remota sem clique:
@@ -107,7 +105,7 @@ wscript .\scripts\launcher.vbs
 1. Gere o pacote de release:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\release\New-InstTotemPackage.ps1
+powershell -ExecutionPolicy Bypass -File .\release\New-InstTotemPackage.ps1
 ```
 
 2. O script gera em `dist/`:
@@ -137,7 +135,7 @@ $null = [System.Management.Automation.Language.Parser]::ParseFile(
 Teste de carga do XAML de referencia:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\tests\test_xaml.ps1
+powershell -ExecutionPolicy Bypass -File .\tests\test_xaml.ps1
 ```
 
 ## Notas
@@ -145,4 +143,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\tests\test_xaml.ps1
 - O runtime oficial e `TotemAutomacao.ps1`.
 - O bootstrap extrai em `C:\ProgramData\InstTotem\releases\<timestamp>` e executa o script principal.
 - O bootstrap agora mostra progresso de download por padrao (interativo). Para modo silencioso, use o parametro `-NoDownloadProgress` ao executar `Start-InstTotem.ps1` diretamente.
-- A pasta `references/` esta ignorada no git para evitar conflito com repositorios embutidos.
+- Referencias externas, artefatos gerados e dependencias instaladas localmente devem ficar fora da arvore principal do projeto.
